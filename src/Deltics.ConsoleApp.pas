@@ -16,9 +16,15 @@ interface
 
 
   type
-    TApplication = class;
+    TCommand          = Deltics.ConsoleApp.Commands.TCommand;
+
+    ECommandError     = Deltics.ConsoleApp.Errors.ECommandError;
+    EInvalidArgument  = Deltics.ConsoleApp.Errors.EInvalidArgument;
+    EInvalidOption    = Deltics.ConsoleApp.Errors.EInvalidOption;
 
 
+
+  type
     TApplication = class(TCommand)
     private
       fVerboseSwitch: ICommandLineOption;
