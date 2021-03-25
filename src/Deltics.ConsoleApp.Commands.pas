@@ -8,7 +8,7 @@ interface
 
   uses
     Classes,
-    Generics.Collections,
+    Contnrs,
     SysUtils,
     Deltics.CommandLine,
     Deltics.InterfacedObjects,
@@ -20,7 +20,9 @@ interface
 
   type
     TCommand = class;
+    TCommandList = class;
     TCommandClass = class of TCommand;
+
 
 
     TCommandSwitchList = class(TInterfaceList)
@@ -32,10 +34,11 @@ interface
     end;
 
 
+
     TCommand = class(TInterfacedObject)
     private
       fParams: IStringList;
-      fCommands: TObjectList<TCommand>;
+      fCommands: TCommandList;
       fDetailedHelp: TStringList;
       fDetailedHelpSummary: TStringList;
       fName: String;
@@ -70,8 +73,6 @@ interface
       procedure Cleanup; virtual;
       procedure Execute; overload;
       procedure Setup; virtual;
-      function IsSwitchEnabled(const aOption: UnicodeString): Boolean; overload;
-      function IsSwitchEnabled(const aOption: UnicodeString; var aValue: String): Boolean; overload;
       function RegisterSwitch(const aSwitch: String; const aAlias: String; const aDefaultValue: String = ''): ICommandLineOption;
 
       procedure DoRegisterCommands; virtual;
@@ -89,12 +90,22 @@ interface
 //      property Application: TApplication read get_Application;
       property Params: IStringList read fParams;
       property Switches: TCommandSwitchList read fSwitches;
-      property Commands: TObjectList<TCommand> read fCommands;
+      property Commands: TCommandList read fCommands;
       property Console: ConsoleClass read get_Console;
       property FullName: String read get_FullName;
       property Name: String read get_Name;
       property Parent: TCommand read fParent;
     end;
+
+
+
+    TCommandList = class(TObjectList)
+    private
+      function get_Item(const aIndex: Integer): TCommand;
+    public
+      property Items[const aIndex: Integer]: TCommand read get_Item; default;
+    end;
+
 
 
 implementation
@@ -112,7 +123,7 @@ implementation
     inherited Create;
 
     fParams   := TStringList.CreateManaged;
-    fCommands := TObjectList<TCommand>.Create;
+    fCommands := TCommandList.Create;
     fSwitches := TCommandSwitchList.Create;
 
     fDetailedHelp         := TStringList.Create;
@@ -188,10 +199,15 @@ implementation
 
 
   function TCommand.FindCommand(const aName: String): TCommand;
+  var
+    i: Integer;
   begin
-    for result in fCommands do
-      if result.Name.EqualsText(aName) then
+    for i := 0 to Pred(fCommands.Count) do
+    begin
+      result := fCommands[i];
+      if Str.SameText(result.Name, aName) then
         EXIT;
+    end;
 
     result := NIL;
   end;
@@ -206,21 +222,23 @@ implementation
 
   procedure TCommand.RegisterCommand(aCommand: TCommandClass);
   var
+    i: Integer;
     cmd: TCommand;
   begin
+    for i := 0 to Pred(fCommands.Count) do
+    begin
+      if fCommands[i].ClassType = aCommand then
+        EXIT;
+    end;
+
     cmd := aCommand.Create;
 
-    if NOT fCommands.Contains(cmd) then
-    begin
-      if NOT (self is TApplication) then
-        cmd.fParent := self;
+    if NOT (self is TApplication) then
+      cmd.fParent := self;
 
-      cmd.DoRegister;
+    cmd.DoRegister;
 
-      fCommands.Add(cmd);
-    end
-    else
-      cmd.Free;
+    fCommands.Add(cmd);
   end;
 
 
@@ -233,8 +251,8 @@ implementation
     for i := 0 to Pred(CommandLine.Options.Count) do
     begin
       result := CommandLine.Options[i];
-      if result.Name.EqualsText(aSwitch)
-       or result.Name.EqualsText(aAlias) then
+      if Str.SameText(result.Name, aSwitch)
+       or Str.SameText(result.Name, aAlias) then
         EXIT;
     end;
 
@@ -246,20 +264,6 @@ implementation
   begin
     // NO-OP
   end;
-
-
-  function TCommand.IsSwitchEnabled(const aOption: UnicodeString): Boolean;
-  begin
-    result := FindCmdLineSwitch(aOption);
-  end;
-
-
-  function TCommand.IsSwitchEnabled(const aOption: UnicodeString; var aValue: String): Boolean;
-  begin
-    result := FindCmdLineSwitch(aOption, aValue);
-  end;
-
-
 
 
   procedure TCommand.Cleanup;
@@ -500,5 +504,20 @@ implementation
         result.Alts.Add(aShortSwitch);
     end;
   end;
+
+
+
+
+
+
+{ TCommandList }
+
+  function TCommandList.get_Item(const aIndex: Integer): TCommand;
+  begin
+    result := TCommand(inherited Items[aIndex]);
+  end;
+
+
+
 
 end.

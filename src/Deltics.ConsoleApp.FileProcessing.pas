@@ -8,6 +8,7 @@ interface
 
   uses
     SysUtils,
+    Deltics.CommandLine,
     Deltics.ConsoleApp.Commands,
     Deltics.IO.FindFiles,
     Deltics.IO.SearchPath,
@@ -19,8 +20,9 @@ interface
     private
       fDirs: ISearchPath;
       fFiles: TFileList;
-      fRecursive: Boolean;
-      fRoot: UnicodeString;
+      fRecursiveSwitch: ICommandLineOption;
+      fRootDir: String;
+      fRootSwitch: ICommandLineOption;
       procedure PreProcessFile(const aFilename: UnicodeString);
       function ProcessFile(const aFilename: UnicodeString): Boolean;
 
@@ -28,6 +30,7 @@ interface
       procedure Cleanup; override;
       procedure DoParseParams; override;
       procedure DoExecute; override;
+      procedure DoRegister; override;
 
       property Dirs: ISearchPath read fDirs;
       property Files: TFileList read fFiles;
@@ -138,17 +141,12 @@ implementation
   begin
     inherited;
 
-    fRecursive  := NOT (FindCmdLineSwitch('nr') or FindCmdLineSwitch('norecurse'));
+    fRootDir := fRootSwitch.ValueOrDefault(Path.CurrentDir);
 
-    if  NOT (    (   FindCmdLineSwitch('r', fRoot)
-                  or FindCmdLineSwitch('root', fRoot))
-             and Path.Exists(fRoot)) then
-      fRoot := Path.CurrentDir;
-
-    if fRecursive then
-      fDirs := SearchPath.New(Path.Append(fRoot, '**'))
+    if fRecursiveSwitch.IsEnabled then
+      fDirs := SearchPath.New(Path.Append(fRootDir, '**'))
     else
-      fDirs := SearchPath.New(fRoot);
+      fDirs := SearchPath.New(fRootDir);
 
     fFiles := TFileList.Create;
   end;
@@ -189,7 +187,7 @@ implementation
 
   function TFileProcessingCommand.RelativePath(aPath: String): String;
   begin
-    result := Path.AbsoluteToRelative(aPath, fRoot);
+    result := Path.AbsoluteToRelative(aPath, fRootDir);
   end;
 
 
@@ -198,6 +196,12 @@ implementation
     result := RelativePath(Path.Append(aDir, aFile));
   end;
 
+
+  procedure TFileProcessingCommand.DoRegister;
+  begin
+    fRecursiveSwitch  := RegisterSwitch('--recursive', '-r');
+    fRootSwitch       := RegisterSwitch('--rootFolder', '-rf');
+  end;
 
 
 

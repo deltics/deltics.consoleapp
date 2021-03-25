@@ -8,7 +8,6 @@ interface
 
   uses
     Classes,
-    Generics.Collections,
     SysUtils,
     Deltics.CommandLine,
     Deltics.Console,
@@ -22,7 +21,7 @@ interface
 
     TApplication = class(TCommand)
     private
-      fIsVerbose: Boolean;
+      fVerboseSwitch: ICommandLineOption;
       fName: String;
       fHandleExceptions: Boolean;
       fTitle: String;
@@ -30,10 +29,9 @@ interface
 
     protected
       function DoGetName: String; override;
+      procedure DoRegister; override;
 
     public
-      destructor Destroy; override;
-
       function ParseCommandTree(const aCommand: String): TCommand;
 
       procedure Execute;
@@ -44,9 +42,9 @@ interface
       procedure SetReportExceptions(const aValue: Boolean);
       procedure SetTitle(const aValue: String);
 
-      property IsVerbose: Boolean read fIsVerbose;
       property HandleExceptions: Boolean read fHandleExceptions;
       property Title: String read fTitle;
+      property Verbose: ICommandLineOption read fVerboseSwitch;
     end;
 
 
@@ -68,23 +66,16 @@ implementation
     TCommandHelper = class(Deltics.ConsoleApp.Commands.TCommand);
 
 
+  function IsDebuggerPresent: Boolean; external kernel32 name 'IsDebuggerPresent';
+
 
   constructor TApplication.Create;
   begin
     inherited Create;
 
-    fIsVerbose  := FindCmdLineSwitch('-v')
-                or FindCmdLineSwitch('--verbose');
-
-    fTitle    := Name;
+    fTitle := Name;
 
     RegisterCommand(HELP);
-  end;
-
-
-  destructor TApplication.Destroy;
-  begin
-    inherited Destroy;
   end;
 
 
@@ -161,8 +152,12 @@ implementation
           repeat
             Console.WriteLn('-> @red(%s: %s)', [e.ClassName, e.Message]);
 
+          {$ifdef DELPHI XE4__}
             e := e.InnerException;
             Console.Indent(3);
+          {$else}
+            e := NIL;
+          {$endif}
           until NOT Assigned(e);
 
         finally
@@ -207,9 +202,10 @@ implementation
   end;
 
 
-
-
-
+  procedure TApplication.DoRegister;
+  begin
+    fVerboseSwitch := RegisterSwitch('--verbose', '-v');
+  end;
 
 
 

@@ -76,8 +76,11 @@ implementation
       Console.WriteLn('  Available commands:');
       Console.WriteLn;
 
-      for cmd in Application.Commands do
+      for i := 0 to Pred(Application.Commands.Count) do
+      begin
+        cmd := Application.Commands[i];
         Console.WriteLn('   @cyan(%s)', [cmd.Name]);
+      end;
 
       Console.WriteLn;
       Console.WriteLn('  Type: @cyan(%s help) @red(<command>) for help with a specific command', [Application.Name]);
