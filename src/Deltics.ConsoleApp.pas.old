@@ -1,0 +1,586 @@
+
+  unit Deltics.Console.Application;
+
+interface
+
+  uses
+    Classes,
+    Generics.Collections,
+    SysUtils,
+    Deltics.Console,
+    Deltics.Strings;
+
+
+  type
+    TApplication = class;
+    TCommand = class;
+
+    TCommandClass = class of TCommand;
+
+    ECommandError = class(Exception)
+    public
+      constructor Create(const aMessage: String; aArgs: array of const); reintroduce; overload;
+    end;
+
+    EInvalidArgument = class(ECommandError);
+    EInvalidOption = class(ECommandError);
+
+
+    TCommand = class
+    private
+      fArguments: TStringList;
+      fCommands: TObjectList<TCommand>;
+      fDetailedHelp: TStringList;
+      fDetailedHelpSummary: TStringList;
+      fName: String;
+      fParent: TCommand;
+      function get_Application: TApplication;
+      function get_Name: String;
+
+      procedure IdentifyArguments;
+      function get_FullName: String;
+      function get_Console: ConsoleClass;
+
+    protected
+      procedure DetailedHelp(const aSummary: String); overload;
+      procedure DetailedHelp(const aID: String; const aSummary: String; const aHelp: String); overload;
+      function DetailedHelpText(const aID: String): TStringList; overload;
+      function DetailedHelpText(const aIndex: Integer): TStringList; overload;
+      function HasDetailedHelp: Boolean; overload;
+      function HasDetailedHelp(const aID: String; var aIndex: Integer): Boolean; overload;
+      function InvalidArgument(const aMessage: String): EInvalidArgument; overload;
+      function InvalidArgument(const aMessage: String; aArgs: array of const): EInvalidArgument; overload;
+
+      function DoGetName: String; virtual;
+      procedure DoInitialise; virtual;
+      procedure DoDisplayHelp; virtual;
+
+      procedure DoParseParams; virtual;
+      procedure DoExecute; virtual;
+
+      procedure DisplayHelp; virtual;
+      procedure Initialise;
+      procedure ParseParams;
+      procedure Cleanup; virtual;
+      procedure Execute;
+      function SwitchEnabled(const aOption: UnicodeString): Boolean; overload;
+      function SwitchEnabled(const aOption: UnicodeString; var aValue: String): Boolean; overload;
+
+      procedure RegisterCommand(aCommand: TCommandClass);
+
+    public
+      constructor Create; overload;
+      constructor Create(const aParent: TCommand); overload;
+      procedure AfterConstruction; override;
+      destructor Destroy; override;
+
+      function FindCommand(const aName: String): TCommand;
+
+      property Application: TApplication read get_Application;
+      property Arguments: TStringList read fArguments;
+      property Commands: TObjectList<TCommand> read fCommands;
+      property Console: ConsoleClass read get_Console;
+      property FullName: String read get_FullName;
+      property Name: String read get_Name;
+      property Parent: TCommand read fParent;
+    end;
+
+
+    TApplication = class(TCommand)
+    private
+      fIsVerbose: Boolean;
+      fName: String;
+      fTitle: String;
+      constructor Create; reintroduce;
+
+    protected
+      function DoGetName: String; override;
+
+    public
+      destructor Destroy; override;
+
+      function ParseCommandTree(const aCommand: String): TCommand;
+
+      procedure Execute;
+      procedure DisplayHelp; overload; override;
+      procedure DisplayHelp(aCommand: TCommand); reintroduce; overload;
+      procedure RegisterCommand(aCommand: TCommandClass);
+      procedure SetName(const aValue: String);
+      procedure SetTitle(const aValue: String);
+
+      property IsVerbose: Boolean read fIsVerbose;
+      property Title: String read fTitle;
+    end;
+
+
+
+  var
+    Application: TApplication;
+
+
+
+implementation
+
+  uses
+    Windows,
+    Deltics.Console.Application.HELP;
+
+
+  constructor ECommandError.Create(const aMessage: String; aArgs: array of const);
+  begin
+    inherited CreateFmt(aMessage, aArgs);
+  end;
+
+
+
+  constructor TApplication.Create;
+  begin
+    inherited Create;
+
+    fIsVerbose  := FindCmdLineSwitch('-v')
+                or FindCmdLineSwitch('--verbose');
+
+    fTitle    := Name;
+
+    RegisterCommand(HELP);
+  end;
+
+
+  destructor TApplication.Destroy;
+  begin
+    inherited Destroy;
+  end;
+
+
+  procedure TApplication.DisplayHelp;
+  begin
+
+  end;
+
+
+  procedure TApplication.DisplayHelp(aCommand: TCommand);
+  begin
+
+  end;
+
+
+  function TApplication.ParseCommandTree(const aCommand: String): TCommand;
+  begin
+    // ?
+    result := NIL;
+  end;
+
+
+  procedure TApplication.Execute;
+  var
+    key: Char;
+
+    procedure Done;
+    begin
+      if IsDebuggerPresent then
+      begin
+        if Console.CursorPos.Col <> 1 then
+          Console.WriteLn;
+
+        Console.WriteLn;
+        Console.WriteLn(' @blue(Application terminated normally.)');
+        Console.WriteLn(' @blue(Press any key to close the console)');
+
+        Read(key);
+      end;
+    end;
+
+  var
+    app: TCommand;
+    attr: Word;
+  begin
+    try
+      attr := Console.Attr;
+      try
+        app := FindCommand(ParamStr(1));
+        if Assigned(app) then
+          app.Execute;
+
+        Done;
+
+      finally
+        Console.SetColor(attr);
+      end;
+
+    except
+      on EAbort do Done;
+
+      on e: Exception do
+      begin
+        if Console.CursorPos.Col <> 1 then
+          Console.WriteLn;
+
+        Console.WriteLn;
+        Console.WriteLn('@red(#####################################################)');
+        Console.WriteLn('@red(#                                                   #)');
+        Console.WriteLn('@red(#   Software failure.  Press any key to continue.   #)');
+        Console.WriteLn('@red(#                                                   #)');
+        Console.WriteLn('@red(#     Guru Meditation #%.8x.%.8x            #)', [42, Integer(ExceptAddr)]);
+        Console.WriteLn('@red(#                                                   #)');
+        Console.WriteLn('@red(#####################################################)');
+        Console.WriteLn;
+        Console.WriteLn('  @red(%s: %s)', [e.ClassName, e.Message]);
+        Console.WriteLn('  @red(Press any key to terminate)');
+
+        Read(key);
+      end;
+    end;
+  end;
+
+
+
+  procedure TApplication.RegisterCommand(aCommand: TCommandClass);
+  begin
+    inherited;
+  end;
+
+
+  procedure TApplication.SetName(const aValue: String);
+  begin
+    fName := aValue;
+  end;
+
+
+  procedure TApplication.SetTitle(const aValue: String);
+  begin
+    fTitle := aValue;
+  end;
+
+
+  function TApplication.DoGetName: String;
+  begin
+    result := fName;
+
+    if result = '' then
+      result := STR.Lowercase(ChangeFileExt(ExtractFilename(ParamStr(0)), ''));
+  end;
+
+
+
+
+
+{ TCommand }
+
+  constructor TCommand.Create;
+  begin
+    inherited Create;
+
+    fArguments  := TStringList.Create;
+    fCommands   := TObjectList<TCommand>.Create;
+
+    fDetailedHelp         := TStringList.Create;
+    fDetailedHelpSummary  := TStringList.Create;
+  end;
+
+
+  constructor TCommand.Create(const aParent: TCommand);
+  begin
+    Create;
+
+    fParent := aParent;
+  end;
+
+
+  procedure TCommand.AfterConstruction;
+  begin
+    inherited;
+  end;
+
+
+  destructor TCommand.Destroy;
+  begin
+    while (fDetailedHelp.Count > 0) do
+    begin
+      fDetailedHelp.Objects[0].Free;
+      fDetailedHelp.Delete(0);
+    end;
+    FreeAndNIL(fDetailedHelp);
+    FreeAndNIL(fDetailedHelpSummary);
+
+    FreeAndNIL(fCommands);
+    FreeAndNIL(fArguments);
+
+    inherited;
+  end;
+
+
+  procedure TCommand.DetailedHelp(const aSummary: String);
+  begin
+    fDetailedHelpSummary.Text := aSummary;
+  end;
+
+
+  procedure TCommand.DetailedHelp(const aID, aSummary, aHelp: String);
+  var
+    help: TStringList;
+  begin
+    help := TStringList.Create;
+    help.Text := aHelp;
+
+    fDetailedHelp.AddObject(STR.Uppercase(aID) + '=' + aSummary, help);
+  end;
+
+
+  function TCommand.DetailedHelpText(const aID: String): TStringList;
+  var
+    idx: Integer;
+  begin
+    if HasDetailedHelp(aID, idx) then
+      result := DetailedHelpText(idx)
+    else
+      result := NIL;
+  end;
+
+
+  function TCommand.DetailedHelpText(const aIndex: Integer): TStringList;
+  begin
+    result := TStringList(fDetailedHelp.Objects[aIndex]);
+  end;
+
+
+  function TCommand.FindCommand(const aName: String): TCommand;
+  begin
+    for result in fCommands do
+      if result.Name.EqualsText(aName) then
+        EXIT;
+
+    result := NIL;
+  end;
+
+
+  procedure TCommand.RegisterCommand(aCommand: TCommandClass);
+  var
+    cmd: TCommand;
+  begin
+    cmd := aCommand.Create;
+
+    if NOT fCommands.Contains(cmd) then
+    begin
+      if NOT (self is TApplication) then
+        cmd.fParent := self;
+
+      cmd.Initialise;
+
+      fCommands.Add(cmd);
+    end
+    else
+      cmd.Free;
+  end;
+
+
+  function TCommand.SwitchEnabled(const aOption: UnicodeString): Boolean;
+  begin
+    result := FindCmdLineSwitch(aOption);
+  end;
+
+
+  function TCommand.SwitchEnabled(const aOption: UnicodeString; var aValue: String): Boolean;
+  begin
+    result := FindCmdLineSwitch(aOption, aValue);
+  end;
+
+
+
+
+  procedure TCommand.Cleanup;
+  begin
+    // NO-OP
+  end;
+
+
+  procedure TCommand.DoDisplayHelp;
+  begin
+    Console.WriteLn('Sorry, no help is available for @cyan(%s %s)', [Application.Name, FullName]);
+
+    if Assigned(Parent) then
+    begin
+      Console.WriteLn;
+      Parent.DisplayHelp;
+    end;
+  end;
+
+
+  procedure TCommand.DisplayHelp;
+  var
+    idx: Integer;
+  begin
+    if (Arguments.Count > 0) and HasDetailedHelp(Arguments[0], idx) then
+    begin
+      Console.Write(DetailedHelpText(idx), 4, 4);
+      Console.WriteLn;
+    end
+    else if (Arguments.Count = 0) and HasDetailedHelp then
+    begin
+    end
+    else
+      DoDisplayHelp;
+  end;
+
+
+  procedure TCommand.DoExecute;
+  begin
+    { NO-OP }
+  end;
+
+
+  function TCommand.DoGetName: String;
+  begin
+    result := STR.Lowercase(ClassName);
+
+    STR.ConsumeRight(result, 'command', csIgnoreCase);
+  end;
+
+
+  procedure TCommand.DoInitialise;
+  begin
+    // NO-OP
+  end;
+
+
+  procedure TCommand.DoParseParams;
+  begin
+    // NO-OP
+  end;
+
+
+  procedure TCommand.Execute;
+  var
+    cmd: TCommand;
+  begin
+    IdentifyArguments;
+
+    if Arguments.Count > 0 then
+      cmd := FindCommand(Arguments[0])
+    else
+      cmd := NIL;
+
+    if Assigned(cmd) then
+      cmd.Execute
+    else
+    begin
+      ParseParams;
+      try
+        DoExecute;
+
+      finally
+        Cleanup;
+      end;
+    end;
+  end;
+
+
+  function TCommand.get_Application: TApplication;
+  begin
+    result := Deltics.Console.Application.Application;
+  end;
+
+
+  function TCommand.get_Console: ConsoleClass;
+  begin
+    result := Deltics.Console.Console;
+  end;
+
+
+  function TCommand.get_FullName: String;
+  begin
+    if Assigned(Parent) then
+      result := Parent.FullName + ' ' + Name
+    else
+      result := Name;
+  end;
+
+
+  function TCommand.get_Name: String;
+  begin
+    if fName = '' then
+      fName := DoGetName;
+
+    result := fName;
+  end;
+
+
+  function TCommand.HasDetailedHelp: Boolean;
+  begin
+    result := fDetailedHelp.Count > 0;
+  end;
+
+
+  function TCommand.HasDetailedHelp(const aID: String;
+                                    var aIndex: Integer): Boolean;
+  begin
+    aIndex := fDetailedHelp.IndexOfName(STR.Uppercase(aID));
+    result := aIndex <> -1;
+  end;
+
+
+  procedure TCommand.IdentifyArguments;
+  var
+    i: Integer;
+    parent: TCommand;
+    arg: String;
+  begin
+    inherited;
+
+    i       := 2;
+    parent  := self.Parent;
+    while Assigned(parent) do
+    begin
+      Inc(i);
+      parent := parent.Parent;
+    end;
+
+    for i := i to ParamCount do
+    begin
+      arg := ParamStr(i);
+      if ANSIChar(arg[1]) in ['-', '/', '+'] then
+        BREAK;
+
+      fArguments.Add(arg);
+    end;
+  end;
+
+
+  procedure TCommand.Initialise;
+  begin
+    DoInitialise;
+  end;
+
+
+  function TCommand.InvalidArgument(const aMessage: String): EInvalidArgument;
+  begin
+    result := EInvalidArgument.Create(aMessage);
+  end;
+
+
+  function TCommand.InvalidArgument(const aMessage: String; aArgs: array of const): EInvalidArgument;
+  begin
+    result := EInvalidArgument.Create(aMessage, aArgs);
+  end;
+
+
+  procedure TCommand.ParseParams;
+  begin
+    DoParseParams;
+  end;
+
+
+
+
+
+
+
+{ ECommandError }
+
+
+initialization
+  Application := TApplication.Create;
+
+finalization
+  Application.Free;
+
+end.
