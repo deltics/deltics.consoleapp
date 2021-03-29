@@ -13,7 +13,6 @@ interface
     Deltics.CommandLine,
     Deltics.InterfacedObjects,
     Deltics.StringLists,
-    Deltics.Strings,
     Deltics.Console,
     Deltics.ConsoleApp.Errors;
 
@@ -111,7 +110,7 @@ interface
 implementation
 
   uses
-//    Deltics.Radiata,
+    Deltics.Strings,
     Deltics.ConsoleApp,
     Deltics.CommandLine.Options;
 
